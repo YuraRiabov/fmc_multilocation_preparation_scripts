@@ -9,7 +9,7 @@
 // To get the json just open dev console, and in the Network tab copy the response of this request into a delegates.json file: https://www.worldcubeassociation.org/api/v0/user_roles?sort=name&isActive=true&groupType=delegate_regions&isLead=false&per_page=1000
 // 
 // After you have both the page.html and delegates.json run this command:
-// node delegaes_scrape.js page.html delegates.json
+// node delegates_scrape.js page.html delegates.json
 //
 // Reads each venue's delegate names from page.html,
 // looks up their email in delegates.json (skipping trainee_delegates),
@@ -50,7 +50,7 @@ while ((match = venuePattern.exec(html)) !== null) {
       email = emailByName[stripped]; //replace with email = name if you need the list of names
     }
     if (email) {
-      emails.push(name);
+      emails.push(email);
     } else {
       missingDelegates.push(venue + ": " + name);
     }
