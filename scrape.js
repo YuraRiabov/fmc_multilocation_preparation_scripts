@@ -1,18 +1,18 @@
 #!/usr/bin/env node
 
 // Usage:
-//   node scrape_fmc2026.js                   (fetches live from URL)
-//   node scrape_fmc2026.js page.html         (reads from local HTML file)
+//   node scrape.js                   (fetches live from URL)
+//   node scrape.js page.html         (reads from local HTML file)
 //
 // To save HTML manually first:
-//   curl -A "Mozilla/5.0" "https://fm.danskspeedcubingforening.dk/competitions/FMC2026/venues" -o page.html
-//   node scrape_fmc2026.js page.html
+//   curl -A "Mozilla/5.0" "https://fm.danskspeedcubingforening.dk/competitions/FMCEurope2026/venues" -o page.html
+//   node scrape.js page.html
 
 const https = require("https");
 const fs = require("fs");
 const path = require("path");
 
-const URL = "https://fm.danskspeedcubingforening.dk/competitions/FMC2026/venues";
+const URL = "https://fm.danskspeedcubingforening.dk/competitions/FMCEurope2026/venues";
 const outputFile = path.join(__dirname, "fmc2026.csv");
 
 function fetchHTML(url) {
@@ -25,26 +25,41 @@ function fetchHTML(url) {
   });
 }
 
+function decodeEntities(str) {
+  return str
+    .replace(/&#(\d+);/g, function(_, n) { return String.fromCodePoint(parseInt(n, 10)); })
+    .replace(/&#x([0-9a-f]+);/gi, function(_, n) { return String.fromCodePoint(parseInt(n, 16)); })
+    .replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'")
+    .replace(/&amp;/g, "&");
+}
+
+function csvEscape(str) {
+  return str.replace(/"/g, '""');
+}
+
 function parseToCSV(html) {
   var rows = [];
   rows.push("venue,participant");
 
-  var venuePattern = /<h2>([^<]+)<\/h2>[\s\S]*?<table[\s\S]*?<\/table>/g;
-  var venueMatch;
+  // Each venue is a <details class="... venue-panel"> block containing an <h2>
+  // with the venue name and a <table> with one row per registration:
+  //   <tr><td>Name</td><td><span class="status-badge status-accepted">accepted</span></td></tr>
+  var blocks = html.split(/<details\b/).slice(1);
 
-  while ((venueMatch = venuePattern.exec(html)) !== null) {
-    var venueName = venueMatch[1].trim().replace(/"/g, '""');
+  blocks.forEach(function(block) {
+    var h2 = block.match(/<h2>([^<]+)<\/h2>/);
+    if (!h2) return;
+    var venueName = csvEscape(decodeEntities(h2[1]).trim());
     rows.push('"' + venueName + '",""');
 
-    var block = venueMatch[0];
-    // td tags in this page have a trailing space: <td >
-    var localPattern = /<tr>\s*<td[^>]*>([^<]+)<\/td>\s*<td[^>]*>accepted<\/td>\s*<\/tr>/g;
+    var rowPattern = /<tr>\s*<td[^>]*>([^<]+)<\/td>\s*<td[^>]*>\s*<span[^>]*>\s*accepted\s*<\/span>\s*<\/td>\s*<\/tr>/g;
     var m;
-    while ((m = localPattern.exec(block)) !== null) {
-      var name = m[1].trim().replace(/"/g, '""');
+    while ((m = rowPattern.exec(block)) !== null) {
+      var name = csvEscape(decodeEntities(m[1]).trim());
       rows.push('"","' + name + '"');
     }
-  }
+  });
 
   return rows.join("\n");
 }
